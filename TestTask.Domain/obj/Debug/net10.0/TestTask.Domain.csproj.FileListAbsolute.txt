@@ -1,0 +1,13 @@
+C:\Work\TestTask\TestTask\TestTask.Domain\bin\Debug\net10.0\TestTask.Domain.deps.json
+C:\Work\TestTask\TestTask\TestTask.Domain\bin\Debug\net10.0\TestTask.Domain.dll
+C:\Work\TestTask\TestTask\TestTask.Domain\bin\Debug\net10.0\TestTask.Domain.pdb
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.AssemblyInfoInputs.cache
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.AssemblyInfo.cs
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.csproj.CoreCompileInputs.cache
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.dll
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\refint\TestTask.Domain.dll
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.pdb
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\ref\TestTask.Domain.dll
+C:\Work\TestTask\TestTask\TestTask.Domain\bin\Debug\net10.0\TestTask.Domain.xml
+C:\Work\TestTask\TestTask\TestTask.Domain\obj\Debug\net10.0\TestTask.Domain.xml

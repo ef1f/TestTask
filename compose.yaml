@@ -1,0 +1,7 @@
+﻿services:
+  testtask:
+    image: testtask
+    build:
+      context: .
+      dockerfile: TestTask/Dockerfile
+
