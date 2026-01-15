@@ -1,0 +1,20 @@
+﻿services:
+  db:
+    image: postgres:latest
+    container_name: postgres_db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  testtask.api:
+    image: testtask.api
+    build:
+      context: .
+      dockerfile: TestTask.Api/Dockerfile
+
+volumes:
+  postgres_data:
