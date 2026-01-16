@@ -12,10 +12,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-                options
-                    .UseNpgsql(connectionString,
-                        builder => builder.MigrationsAssembly(typeof(DependencyInjection).Assembly.FullName))
-            .UseSnakeCaseNamingConvention()
+            options
+                .UseNpgsql(connectionString,
+                    builder => builder.MigrationsAssembly(typeof(DependencyInjection).Assembly.FullName))
+                .UseSnakeCaseNamingConvention()
         );
 
         return services;

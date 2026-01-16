@@ -50,7 +50,7 @@ namespace TestTask.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TestTask.Core.Entities.Transaction", b =>
+            modelBuilder.Entity("TestTask.Core.Entities.FinanceTransaction", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -72,15 +72,15 @@ namespace TestTask.Infrastructure.Migrations
                         .HasColumnName("client_id");
 
                     b.Property<DateTime>("DateTime")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("date_time");
 
                     b.Property<DateTime>("InsertedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("inserted_at");
 
                     b.Property<DateTime?>("RevertedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp without time zone")
                         .HasColumnName("reverted_at");
 
                     b.Property<int>("Status")
@@ -103,7 +103,7 @@ namespace TestTask.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TestTask.Core.Entities.Transaction", b =>
+            modelBuilder.Entity("TestTask.Core.Entities.FinanceTransaction", b =>
                 {
                     b.HasOne("TestTask.Core.Entities.Client", "Client")
                         .WithMany("Transactions")

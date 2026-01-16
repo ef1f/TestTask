@@ -1,4 +1,6 @@
-﻿namespace TestTask.Core.Models;
+﻿using System.Text.Json.Serialization;
+
+namespace TestTask.Core.Models;
 
 /// <summary>
 /// Результат выполнения запроса на получение актуального баланса клиента
@@ -8,5 +10,6 @@ public record BalanceResponse : BaseResponse
     /// <summary>
     /// Время выполнения запроса
     /// </summary>
+    [JsonConverter(typeof(PreciseDateTimeConverter))]
     public DateTime BalanceDateTime { get; set; }
 }

@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\TestTask.Core\TestTask.Core.csproj" />
+      <ProjectReference Include="..\TestTask.Infrastructure\TestTask.Infrastructure.csproj" />
     </ItemGroup>
 
 </Project>

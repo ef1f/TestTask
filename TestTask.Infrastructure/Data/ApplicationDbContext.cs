@@ -10,7 +10,7 @@ public class ApplicationDbContext : DbContext
     {
     }
 
-    public DbSet<Transaction> Transactions { get; set; }
+    public DbSet<FinanceTransaction> Transactions { get; set; }
     public DbSet<Client> Clients { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

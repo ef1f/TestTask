@@ -3,7 +3,7 @@
 /// <summary>
 /// Транзакция
 /// </summary>
-public class Transaction
+public class FinanceTransaction
 {
     /// <summary>
     /// Id Транзакции

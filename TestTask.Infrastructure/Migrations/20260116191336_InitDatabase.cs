@@ -31,12 +31,12 @@ namespace TestTask.Infrastructure.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     client_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    date_time = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    date_time = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     amount = table.Column<decimal>(type: "numeric", nullable: false),
                     transaction_type = table.Column<int>(type: "integer", nullable: false),
                     status = table.Column<int>(type: "integer", nullable: false),
-                    inserted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    reverted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    inserted_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    reverted_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     client_balance = table.Column<decimal>(type: "numeric(18,2)", nullable: false, defaultValue: 0m)
                 },
                 constraints: table =>
