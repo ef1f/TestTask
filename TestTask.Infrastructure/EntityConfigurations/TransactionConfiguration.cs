@@ -27,6 +27,6 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .HasForeignKey(p => p.ClientId)
             .OnDelete(DeleteBehavior.Restrict);
         
-        builder.HasCheckConstraint("CK_Transaction_ClientBalance_Positive", "ClientBalance >= 0");
+        builder.HasCheckConstraint("CK_Transaction_ClientBalance_Positive", "client_balance >= 0");
     }
 }

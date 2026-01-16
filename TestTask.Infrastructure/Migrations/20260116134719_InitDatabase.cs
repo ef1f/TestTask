@@ -22,7 +22,7 @@ namespace TestTask.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_clients", x => x.id);
-                    table.CheckConstraint("CK_Client_Balance_Positive", "Balance >= 0");
+                    table.CheckConstraint("CK_Client_Balance_Positive", "balance >= 0");
                 });
 
             migrationBuilder.CreateTable(
@@ -42,7 +42,7 @@ namespace TestTask.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_transactions", x => x.id);
-                    table.CheckConstraint("CK_Transaction_ClientBalance_Positive", "ClientBalance >= 0");
+                    table.CheckConstraint("CK_Transaction_ClientBalance_Positive", "client_balance >= 0");
                     table.ForeignKey(
                         name: "fk_transactions_clients_client_id",
                         column: x => x.client_id,

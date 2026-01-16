@@ -15,6 +15,6 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
             .HasDefaultValue(0)
             .IsRequired();
 
-        builder.HasCheckConstraint("CK_Client_Balance_Positive", "Balance >= 0");
+        builder.HasCheckConstraint("CK_Client_Balance_Positive", "balance >= 0");
     }
 }

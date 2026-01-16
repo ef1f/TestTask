@@ -12,7 +12,7 @@ using TestTask.Infrastructure.Data;
 namespace TestTask.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260116130202_InitDatabase")]
+    [Migration("20260116134719_InitDatabase")]
     partial class InitDatabase
     {
         /// <inheritdoc />
@@ -49,7 +49,7 @@ namespace TestTask.Infrastructure.Migrations
 
                     b.ToTable("clients", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Client_Balance_Positive", "Balance >= 0");
+                            t.HasCheckConstraint("CK_Client_Balance_Positive", "balance >= 0");
                         });
                 });
 
@@ -102,7 +102,7 @@ namespace TestTask.Infrastructure.Migrations
 
                     b.ToTable("transactions", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Transaction_ClientBalance_Positive", "ClientBalance >= 0");
+                            t.HasCheckConstraint("CK_Transaction_ClientBalance_Positive", "client_balance >= 0");
                         });
                 });
 
