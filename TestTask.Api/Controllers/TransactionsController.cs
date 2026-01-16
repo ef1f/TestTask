@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TestTask.Domain.Contracts;
-using TestTask.Domain.Models;
+using TestTask.Application.Interfaces;
+using TestTask.Core.Models;
 
 
-namespace TestTransaction.API.Controllers
+namespace TestTask.Api.Controllers
 {
     /// <summary>
     /// Контроллер для управления финансовыми транзакциями
@@ -21,7 +21,8 @@ namespace TestTransaction.API.Controllers
         /// Выполнить операцию зачисления средств
         /// </summary>
         [HttpPost("credit")]
-        public async Task<IActionResult> Credit([FromBody] CreditTransaction req, CancellationToken ct = default)
+        public async Task<ActionResult<TransactionResponse>> Credit([FromBody] CreditTransaction req,
+            CancellationToken ct = default)
             => Ok(await _service.CreditAsync(req, ct));
 
 
@@ -29,7 +30,8 @@ namespace TestTransaction.API.Controllers
         /// Выполнить операцию списания средств
         /// </summary>
         [HttpPost("debit")]
-        public async Task<IActionResult> Debit([FromBody] DebitTransaction req, CancellationToken ct = default)
+        public async Task<ActionResult<TransactionResponse>> Debit([FromBody] DebitTransaction req,
+            CancellationToken ct = default)
             => Ok(await _service.DebitAsync(req, ct));
 
 
@@ -37,7 +39,7 @@ namespace TestTransaction.API.Controllers
         /// Отменить существующую транзакцию
         /// </summary>
         [HttpPost("revert")]
-        public async Task<IActionResult> Revert([FromQuery] Guid id, CancellationToken ct = default)
+        public async Task<ActionResult<RevertResponse>> Revert([FromQuery] Guid id, CancellationToken ct = default)
             => Ok(await _service.RevertAsync(id, ct));
 
 
@@ -45,7 +47,7 @@ namespace TestTransaction.API.Controllers
         /// Получить баланс клиента
         /// </summary>
         [HttpGet("balance")]
-        public async Task<IActionResult> GetBalance([FromQuery] Guid id, CancellationToken ct = default)
+        public async Task<ActionResult<BalanceResponse>> GetBalance([FromQuery] Guid id, CancellationToken ct = default)
             => Ok(await _service.GetBalanceAsync(id, ct));
     }
 }

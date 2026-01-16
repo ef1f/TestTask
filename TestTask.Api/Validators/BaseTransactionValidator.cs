@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
-using TestTask.Domain.Contracts;
-using TestTask.Domain.Models;
+using TestTask.Core;
+
 
 namespace TestTask.Api.Validators;
 

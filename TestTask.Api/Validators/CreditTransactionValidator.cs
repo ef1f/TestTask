@@ -1,4 +1,4 @@
-﻿using TestTask.Domain.Models;
+﻿using TestTask.Core.Models;
 
 namespace TestTask.Api.Validators;
 
