@@ -17,7 +17,6 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
-
         if (exception is AggregateException aggregateException)
         {
             exception = aggregateException.Flatten().InnerException ?? exception;
@@ -37,6 +36,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             ArgumentException => StatusCodes.Status400BadRequest,
             ValidationException => StatusCodes.Status400BadRequest,
+            NotSupportedException => StatusCodes.Status400BadRequest,
             KeyNotFoundException => StatusCodes.Status404NotFound,
             ClientNotFoundException => StatusCodes.Status404NotFound,
             TransactionNotFoundException => StatusCodes.Status404NotFound,
@@ -46,8 +46,8 @@ public class GlobalExceptionHandler : IExceptionHandler
         };
 
         var isLocalEnvironment = httpContext.Request.Host.Value.Contains("localhost") ||
-                                httpContext.Request.Host.Value.Contains("127.0.0.1") ||
-                                httpContext.Request.Host.Value.Contains("::1");
+                                 httpContext.Request.Host.Value.Contains("127.0.0.1") ||
+                                 httpContext.Request.Host.Value.Contains("::1");
 
         var detailMessage = exception.Message.Length > 500
             ? exception.Message.Substring(0, 500) + "..."
@@ -79,5 +79,4 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         return true;
     }
- 
 }

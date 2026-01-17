@@ -5,6 +5,7 @@ using SharpGrip.FluentValidation.AutoValidation.Mvc.Extensions;
 using FluentValidation;
 using TestTask.Application.Interfaces;
 using TestTask.Application.Services;
+using TestTask.Application.Strategies;
 using TestTask.Infrastructure;
 using TestTask.Infrastructure.Data;
 
@@ -24,6 +25,8 @@ builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
 builder.Services.AddDbInfrastructure(builder.Configuration);
 
+builder.Services.AddScoped<ITransactionStrategy, CreditStrategy>();
+builder.Services.AddScoped<ITransactionStrategy, DebitStrategy>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 
 var app = builder.Build();

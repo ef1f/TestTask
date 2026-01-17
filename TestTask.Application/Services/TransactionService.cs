@@ -14,169 +14,146 @@ namespace TestTask.Application.Services;
 public class TransactionService : ITransactionService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly Dictionary<TransactionType, ITransactionStrategy> _strategies;
 
-    public TransactionService(ApplicationDbContext dbContext)
+    public TransactionService(ApplicationDbContext dbContext,
+        IEnumerable<ITransactionStrategy> strategies)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _strategies = strategies.ToDictionary(s => s.Type);
     }
 
     public async Task<TransactionResponse> CreditAsync(ITransaction transaction, CancellationToken token)
-    {
-        return await ProcessOperationAsync(transaction, (client, amount) =>
-        {
-            client.Balance += amount;
-            return TransactionType.Credit;
-        }, token);
-    }
+        => await ExecuteOperationAsync(transaction, TransactionType.Credit, token);
 
     public async Task<TransactionResponse> DebitAsync(ITransaction transaction, CancellationToken token)
-    {
-        return await ProcessOperationAsync(transaction, (client, amount) =>
-        {
-            if (client.Balance < amount)
-                throw new InvalidOperationException($"Недостаточно средств TransactionId = {transaction.Id}");
-
-            client.Balance -= amount;
-            return TransactionType.Debit;
-        }, token);
-    }
+        => await ExecuteOperationAsync(transaction, TransactionType.Debit, token);
 
     public async Task<RevertResponse> RevertAsync(Guid transactionId, CancellationToken token)
     {
-        await using var dbTransaction =
-            await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            var data = await GetTransactionWithHistoryAsync(transactionId, token);
+            if (data.RevertedHistory != null)
+                return new RevertResponse
+                {
+                    RevertDateTime = data.RevertedHistory.ModificationDate,
+                    ClientBalance = data.RevertedHistory.NewClientBalance
+                };
 
-        var financeTransaction = await _dbContext.FinanceTransaction
-            .Where(t => t.Id == transactionId)
-            .Select(t => new
-            {
-                Transaction = t,
-                CompletedHistory = t.TransactionHistories.First(th => th.Status == TransactionStatus.Completed),
-                RevertedHistory = t.TransactionHistories.FirstOrDefault(th => th.Status == TransactionStatus.Reverted)
-            })
-            .FirstOrDefaultAsync(token);
+            var client = await GetClientForUpdateAsync(data.Transaction.ClientId, token);
+            var strategy = GetStrategy(data.Transaction.TransactionType);
 
-        if (financeTransaction == null)
-            throw new TransactionNotFoundException(transactionId);
+            var oldBalance = client.Balance;
+            strategy.Revert(client, data.Transaction.Amount);
 
-        if (financeTransaction.RevertedHistory != null)
+            var history = CreateHistoryRecord(transactionId, TransactionStatus.Reverted, oldBalance, client.Balance);
+            _dbContext.TransactionHistory.Add(history);
+
+            await _dbContext.SaveChangesAsync(token);
             return new RevertResponse
-            {
-                RevertDateTime = financeTransaction.RevertedHistory.ModificationDate,
-                ClientBalance = financeTransaction.RevertedHistory.NewClientBalance
-            };
-
-
-        var client = await _dbContext.Clients
-            .FromSqlRaw(
-                "SELECT * FROM clients WHERE id = @id FOR UPDATE",
-                new NpgsqlParameter("@id", financeTransaction.Transaction.ClientId))
-            .FirstOrDefaultAsync(token);
-
-
-        var oldClientBalance = client.Balance;
-
-        // TODO непонятная ситуация
-        if (financeTransaction.Transaction.TransactionType == TransactionType.Credit)
-        {
-            if (client.Balance < financeTransaction.Transaction.Amount)
-                throw new InvalidOperationException(
-                    $"Недостаточно средств для отмены TransactionId = {financeTransaction.Transaction.Id}");
-            client.Balance -= financeTransaction.Transaction.Amount;
-        }
-        else
-            client.Balance += financeTransaction.Transaction.Amount;
-
-
-        var transactionHistory = new TransactionHistory
-        {
-            Id = Guid.NewGuid(),
-            FinanceTransactionId = transactionId,
-            Status = TransactionStatus.Reverted,
-            ModificationDate = DateTime.UtcNow.ToUnspecified(),
-            OldClientBalance = oldClientBalance,
-            NewClientBalance = client.Balance
-        };
-
-        _dbContext.TransactionHistory.Add(transactionHistory);
-
-        await _dbContext.SaveChangesAsync(token);
-        await dbTransaction.CommitAsync(token);
-
-
-        return new RevertResponse
-        {
-            RevertDateTime = transactionHistory.ModificationDate, ClientBalance = transactionHistory.NewClientBalance
-        };
+                { RevertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
+        }, token);
     }
 
     public async Task<BalanceResponse> GetBalanceAsync(Guid clientId, CancellationToken token)
     {
-        var client = await _dbContext.Clients.AsNoTracking().FirstOrDefaultAsync(cl => cl.Id == clientId, token);
+        var client = await _dbContext.Clients.AsNoTracking()
+            .FirstOrDefaultAsync(cl => cl.Id == clientId, token);
+
         if (client == null) throw new ClientNotFoundException(clientId);
+
         return new BalanceResponse
-            { BalanceDateTime = DateTime.UtcNow.ToUnspecified(), ClientBalance = client.Balance };
+        {
+            BalanceDateTime = DateTime.UtcNow.ToUnspecified(),
+            ClientBalance = client.Balance
+        };
     }
 
+    private async Task<TransactionResponse> ExecuteOperationAsync(ITransaction transaction, TransactionType type,
+        CancellationToken token)
+    {
+        return await ExecuteInTransactionAsync(async () =>
+        {
+            var existing = await _dbContext.TransactionHistory
+                .Where(th => th.FinanceTransactionId == transaction.Id && th.Status == TransactionStatus.Completed)
+                .Select(th => new TransactionResponse
+                    { InsertDateTime = th.ModificationDate, ClientBalance = th.NewClientBalance })
+                .FirstOrDefaultAsync(token);
 
-    private async Task<TransactionResponse> ProcessOperationAsync(ITransaction transaction,
-        Func<Client, decimal, TransactionType> process, CancellationToken token)
+            if (existing != null) return existing;
+
+            var client = await GetClientForUpdateAsync(transaction.ClientId, token);
+            var strategy = GetStrategy(type);
+
+            var oldBalance = client.Balance;
+            strategy.Apply(client, transaction.Amount);
+
+            var financeTx = new FinanceTransaction
+            {
+                Id = transaction.Id,
+                ClientId = transaction.ClientId,
+                DateTime = transaction.DateTime.ToUniversalTime().ToUnspecified(),
+                Amount = transaction.Amount,
+                TransactionType = type
+            };
+
+            var history = CreateHistoryRecord(transaction.Id, TransactionStatus.Completed, oldBalance, client.Balance);
+
+            _dbContext.FinanceTransaction.Add(financeTx);
+            _dbContext.TransactionHistory.Add(history);
+
+            await _dbContext.SaveChangesAsync(token);
+            return new TransactionResponse
+                { InsertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
+        }, token);
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken token)
     {
         await using var dbTransaction =
             await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
 
-        var existingTransaction = await _dbContext.FinanceTransaction
-            .Where(t => t.Id == transaction.Id)
-            .Select(t => new
-            {
-                Transaction = t,
-                History = t.TransactionHistories.First(th => th.Status == TransactionStatus.Completed)
-            })
-            .FirstOrDefaultAsync(token);
+        var result = await action();
 
-        if (existingTransaction != null)
-            return new TransactionResponse
-            {
-                InsertDateTime = existingTransaction.History.ModificationDate,
-                ClientBalance = existingTransaction.History.NewClientBalance
-            };
-
-        var client = await _dbContext.Clients
-            .FromSqlRaw("SELECT * FROM clients WHERE id = @id FOR UPDATE",
-                new NpgsqlParameter("@id", transaction.ClientId))
-            .FirstOrDefaultAsync(token);
-
-        var oldClientBalance = client.Balance;
-        var transactionType = process.Invoke(client, transaction.Amount);
-
-        var financeTransaction = new FinanceTransaction
-        {
-            Id = transaction.Id,
-            ClientId = transaction.ClientId,
-            DateTime = transaction.DateTime.ToUniversalTime().ToUnspecified(),
-            Amount = transaction.Amount,
-            TransactionType = transactionType,
-        };
-
-        var transactionHistory = new TransactionHistory
-        {
-            Id = Guid.NewGuid(),
-            FinanceTransactionId = transaction.Id,
-            Status = TransactionStatus.Completed,
-            ModificationDate = DateTime.UtcNow.ToUnspecified(),
-            OldClientBalance = oldClientBalance,
-            NewClientBalance = client.Balance
-        };
-
-        _dbContext.FinanceTransaction.Add(financeTransaction);
-        _dbContext.TransactionHistory.Add(transactionHistory);
-
-        await _dbContext.SaveChangesAsync(token);
         await dbTransaction.CommitAsync(token);
+        return result;
+    }
 
-        return new TransactionResponse
-        {
-            InsertDateTime = transactionHistory.ModificationDate, ClientBalance = transactionHistory.NewClientBalance
-        };
+    private async Task<Client> GetClientForUpdateAsync(Guid clientId, CancellationToken token)
+    {
+        var client = await _dbContext.Clients
+            .FromSqlRaw("SELECT * FROM clients WHERE id = @id FOR UPDATE", new NpgsqlParameter("@id", clientId))
+            .FirstOrDefaultAsync(token);
+        return client ?? throw new ClientNotFoundException(clientId);
+    }
+
+    private ITransactionStrategy GetStrategy(TransactionType type)
+        => _strategies.TryGetValue(type, out var strategy)
+            ? strategy
+            : throw new NotSupportedException($"Тип {type} не поддерживается");
+
+    private TransactionHistory
+        CreateHistoryRecord(Guid txId, TransactionStatus status, decimal oldBal, decimal newBal) => new()
+    {
+        Id = Guid.NewGuid(),
+        FinanceTransactionId = txId,
+        Status = status,
+        ModificationDate = DateTime.UtcNow.ToUnspecified(),
+        OldClientBalance = oldBal,
+        NewClientBalance = newBal
+    };
+
+    private async Task<(FinanceTransaction Transaction, TransactionHistory RevertedHistory)>
+        GetTransactionWithHistoryAsync(Guid id, CancellationToken token)
+    {
+        var tx = await _dbContext.FinanceTransaction
+            .Include(t => t.TransactionHistories)
+            .FirstOrDefaultAsync(t => t.Id == id, token);
+
+        if (tx == null) throw new TransactionNotFoundException(id);
+
+        var reverted = tx.TransactionHistories.FirstOrDefault(h => h.Status == TransactionStatus.Reverted);
+        return (tx, reverted);
     }
 }
