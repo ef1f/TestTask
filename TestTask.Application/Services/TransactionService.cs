@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TestTask.Application.Interfaces;
 using TestTask.Core;
 using TestTask.Core.Entities;
@@ -44,37 +45,77 @@ public class TransactionService : ITransactionService
     {
         await using var dbTransaction =
             await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-        var financeTransaction = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.Id == transactionId, token);
+
+        var financeTransaction = await _dbContext.FinanceTransaction
+            .Where(t => t.Id == transactionId)
+            .Select(t => new
+            {
+                Transaction = t,
+                CompletedHistory = t.TransactionHistories.First(th => th.Status == TransactionStatus.Completed),
+                RevertedHistory = t.TransactionHistories.FirstOrDefault(th => th.Status == TransactionStatus.Reverted)
+            })
+            .FirstOrDefaultAsync(token);
+
         if (financeTransaction == null)
             throw new TransactionNotFoundException(transactionId);
 
-        if (financeTransaction.Status == TransactionStatus.Completed)
+        if (financeTransaction.RevertedHistory != null)
+            return new RevertResponse
+            {
+                RevertDateTime = financeTransaction.RevertedHistory.ModificationDate,
+                ClientBalance = financeTransaction.RevertedHistory.NewClientBalance
+            };
+
+
+        var client = await _dbContext.Clients
+            .FromSqlRaw(
+                "SELECT * FROM clients WHERE id = @id FOR UPDATE",
+                new NpgsqlParameter("@id", financeTransaction.Transaction.ClientId))
+            .FirstOrDefaultAsync(token);
+
+
+        var oldClientBalance = client.Balance;
+
+        // TODO непонятная ситуация
+        if (financeTransaction.Transaction.TransactionType == TransactionType.Credit)
         {
-            var client = await _dbContext.Clients
-                .FromSqlInterpolated($"SELECT * FROM clients WHERE id = {financeTransaction.ClientId} FOR UPDATE")
-                .FirstOrDefaultAsync(token);
-
-            client.Balance += (financeTransaction.TransactionType == TransactionType.Credit
-                ? -financeTransaction.Amount
-                : financeTransaction.Amount);
-
-            financeTransaction.Status = TransactionStatus.Reverted;
-            financeTransaction.RevertedAt = DateTime.UtcNow.ToUnspecified();
-            financeTransaction.ClientBalance = client.Balance;
-
-            await _dbContext.SaveChangesAsync(token);
-            await dbTransaction.CommitAsync(token);
+            if (client.Balance < financeTransaction.Transaction.Amount)
+                throw new InvalidOperationException(
+                    $"Недостаточно средств для отмены TransactionId = {financeTransaction.Transaction.Id}");
+            client.Balance -= financeTransaction.Transaction.Amount;
         }
+        else
+            client.Balance += financeTransaction.Transaction.Amount;
+
+
+        var transactionHistory = new TransactionHistory
+        {
+            Id = Guid.NewGuid(),
+            FinanceTransactionId = transactionId,
+            Status = TransactionStatus.Reverted,
+            ModificationDate = DateTime.UtcNow.ToUnspecified(),
+            OldClientBalance = oldClientBalance,
+            NewClientBalance = client.Balance
+        };
+
+        _dbContext.TransactionHistory.Add(transactionHistory);
+
+        await _dbContext.SaveChangesAsync(token);
+        await dbTransaction.CommitAsync(token);
+
 
         return new RevertResponse
-            { RevertDateTime = financeTransaction.RevertedAt.Value, ClientBalance = financeTransaction.ClientBalance };
+        {
+            RevertDateTime = transactionHistory.ModificationDate, ClientBalance = transactionHistory.NewClientBalance
+        };
     }
 
     public async Task<BalanceResponse> GetBalanceAsync(Guid clientId, CancellationToken token)
     {
         var client = await _dbContext.Clients.AsNoTracking().FirstOrDefaultAsync(cl => cl.Id == clientId, token);
         if (client == null) throw new ClientNotFoundException(clientId);
-        return new BalanceResponse { BalanceDateTime = DateTime.UtcNow.ToUnspecified(), ClientBalance = client.Balance };
+        return new BalanceResponse
+            { BalanceDateTime = DateTime.UtcNow.ToUnspecified(), ClientBalance = client.Balance };
     }
 
 
@@ -84,15 +125,28 @@ public class TransactionService : ITransactionService
         await using var dbTransaction =
             await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
 
-        var existingTransaction = await _dbContext.Transactions.FindAsync(transaction.Id, token);
-        if (existingTransaction != null)
-            return new TransactionResponse
-                { InsertDateTime = existingTransaction.InsertedAt, ClientBalance = existingTransaction.ClientBalance };
-
-        var client = await _dbContext.Clients
-            .FromSqlInterpolated($"SELECT * FROM clients WHERE id = {transaction.ClientId} FOR UPDATE")
+        var existingTransaction = await _dbContext.FinanceTransaction
+            .Where(t => t.Id == transaction.Id)
+            .Select(t => new
+            {
+                Transaction = t,
+                History = t.TransactionHistories.First(th => th.Status == TransactionStatus.Completed)
+            })
             .FirstOrDefaultAsync(token);
 
+        if (existingTransaction != null)
+            return new TransactionResponse
+            {
+                InsertDateTime = existingTransaction.History.ModificationDate,
+                ClientBalance = existingTransaction.History.NewClientBalance
+            };
+
+        var client = await _dbContext.Clients
+            .FromSqlRaw("SELECT * FROM clients WHERE id = @id FOR UPDATE",
+                new NpgsqlParameter("@id", transaction.ClientId))
+            .FirstOrDefaultAsync(token);
+
+        var oldClientBalance = client.Balance;
         var transactionType = process.Invoke(client, transaction.Amount);
 
         var financeTransaction = new FinanceTransaction
@@ -102,16 +156,27 @@ public class TransactionService : ITransactionService
             DateTime = transaction.DateTime.ToUniversalTime().ToUnspecified(),
             Amount = transaction.Amount,
             TransactionType = transactionType,
-            Status = TransactionStatus.Completed,
-            InsertedAt = DateTime.UtcNow.ToUnspecified(),
-            ClientBalance = client.Balance
         };
 
-        _dbContext.Transactions.Add(financeTransaction);
+        var transactionHistory = new TransactionHistory
+        {
+            Id = Guid.NewGuid(),
+            FinanceTransactionId = transaction.Id,
+            Status = TransactionStatus.Completed,
+            ModificationDate = DateTime.UtcNow.ToUnspecified(),
+            OldClientBalance = oldClientBalance,
+            NewClientBalance = client.Balance
+        };
+
+        _dbContext.FinanceTransaction.Add(financeTransaction);
+        _dbContext.TransactionHistory.Add(transactionHistory);
+
         await _dbContext.SaveChangesAsync(token);
         await dbTransaction.CommitAsync(token);
 
         return new TransactionResponse
-            { InsertDateTime = financeTransaction.InsertedAt, ClientBalance = financeTransaction.ClientBalance };
+        {
+            InsertDateTime = transactionHistory.ModificationDate, ClientBalance = transactionHistory.NewClientBalance
+        };
     }
 }

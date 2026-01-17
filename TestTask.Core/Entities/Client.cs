@@ -23,5 +23,5 @@ public class Client
     /// <summary>
     /// Транзакции
     /// </summary>
-    public ICollection<FinanceTransaction> Transactions { get; set; } = new List<FinanceTransaction>();
+    public ICollection<FinanceTransaction> FinanceTransaction { get; set; } = new List<FinanceTransaction>();
 }

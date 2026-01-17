@@ -17,9 +17,22 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
-        _logger.LogError(exception, "Произошла ошибка: {Message}", exception.Message);
 
-        // Определяем статус-код на основе типа исключения
+        if (exception is AggregateException aggregateException)
+        {
+            exception = aggregateException.Flatten().InnerException ?? exception;
+        }
+
+
+        _logger.LogError(
+            exception,
+            "Ошибка в запросе {Method} {Path}, User: {UserId}, TraceId: {TraceId}",
+            httpContext.Request.Method,
+            httpContext.Request.Path,
+            httpContext.User?.Identity?.Name ?? "Anonymous",
+            httpContext.TraceIdentifier);
+
+
         var statusCode = exception switch
         {
             ArgumentException => StatusCodes.Status400BadRequest,
@@ -32,14 +45,32 @@ public class GlobalExceptionHandler : IExceptionHandler
             _ => StatusCodes.Status500InternalServerError
         };
 
-        // Создаем объект ProblemDetails согласно RFC 9457
+        var isLocalEnvironment = httpContext.Request.Host.Value.Contains("localhost") ||
+                                httpContext.Request.Host.Value.Contains("127.0.0.1") ||
+                                httpContext.Request.Host.Value.Contains("::1");
+
+        var detailMessage = exception.Message.Length > 500
+            ? exception.Message.Substring(0, 500) + "..."
+            : exception.Message;
+
+        var detail = isLocalEnvironment
+            ? detailMessage
+            : "Произошла ошибка при выполнении запроса";
+
+
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
             Title = "Произошла ошибка при выполнении запроса",
-            Detail = exception.Message,
-            Type = $"https://httpstatuses.io/{statusCode}"
+            Detail = detail,
+            Type = $"https://httpstatuses.io/{statusCode}",
+            Instance = httpContext.TraceIdentifier
         };
+
+
+        problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+        problemDetails.Extensions["timestamp"] = DateTime.UtcNow.ToString("O");
+        problemDetails.Extensions["path"] = httpContext.Request.Path;
 
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/problem+json";
@@ -48,4 +79,5 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         return true;
     }
+ 
 }

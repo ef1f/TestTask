@@ -31,27 +31,12 @@ public class FinanceTransaction
     public TransactionType TransactionType { get; set; }
 
     /// <summary>
-    /// Статус транзакции принята/отклонена
-    /// </summary>
-    public TransactionStatus Status { get; set; }
-
-    /// <summary>
-    /// Дата выполнения транзакции
-    /// </summary>
-    public DateTime InsertedAt { get; set; }
-
-    /// <summary>
-    /// Дата отмены транзакции (если была отмена)
-    /// </summary>
-    public DateTime? RevertedAt { get; set; }
-
-    /// <summary>
-    /// Баланс клиента после проведения операции
-    /// </summary>
-    public decimal ClientBalance { get; set; }
-
-    /// <summary>
     /// Клиент
     /// </summary>
     public Client Client { get; set; }
+
+    /// <summary>
+    /// История изменений по транзакции 
+    /// </summary>
+    public ICollection<TransactionHistory> TransactionHistories { get; set; } = new List<TransactionHistory>();
 }

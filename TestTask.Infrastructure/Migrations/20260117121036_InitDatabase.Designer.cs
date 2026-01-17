@@ -12,7 +12,7 @@ using TestTask.Infrastructure.Data;
 namespace TestTask.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260116191336_InitDatabase")]
+    [Migration("20260117121036_InitDatabase")]
     partial class InitDatabase
     {
         /// <inheritdoc />
@@ -64,12 +64,6 @@ namespace TestTask.Infrastructure.Migrations
                         .HasColumnType("numeric")
                         .HasColumnName("amount");
 
-                    b.Property<decimal>("ClientBalance")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m)
-                        .HasColumnName("client_balance");
-
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
@@ -78,49 +72,97 @@ namespace TestTask.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("date_time");
 
-                    b.Property<DateTime>("InsertedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("inserted_at");
-
-                    b.Property<DateTime?>("RevertedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("reverted_at");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer")
-                        .HasColumnName("status");
-
                     b.Property<int>("TransactionType")
                         .HasColumnType("integer")
                         .HasColumnName("transaction_type");
 
                     b.HasKey("Id")
-                        .HasName("pk_transactions");
+                        .HasName("pk_finance_transaction");
 
                     b.HasIndex("ClientId")
-                        .HasDatabaseName("IX_Transactions_ClientId");
+                        .HasDatabaseName("IX_FinanceTransaction_ClientId");
 
-                    b.ToTable("transactions", null, t =>
+                    b.ToTable("finance_transaction", (string)null);
+                });
+
+            modelBuilder.Entity("TestTask.Core.Entities.TransactionHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("FinanceTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("finance_transaction_id");
+
+                    b.Property<DateTime>("ModificationDate")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("modification_date");
+
+                    b.Property<decimal>("NewClientBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("new_client_balance");
+
+                    b.Property<decimal>("OldClientBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("old_client_balance");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_transaction_history");
+
+                    b.HasIndex("FinanceTransactionId", "Status")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TransactionHistory_FinanceTransactionId");
+
+                    b.ToTable("transaction_history", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Transaction_ClientBalance_Positive", "client_balance >= 0");
+                            t.HasCheckConstraint("CK_TransactionHistory_ClientBalance_Positive", "old_client_balance >= 0");
+
+                            t.HasCheckConstraint("CK_TransactionHistory_NewClientBalance_Positive", "new_client_balance >= 0");
                         });
                 });
 
             modelBuilder.Entity("TestTask.Core.Entities.FinanceTransaction", b =>
                 {
                     b.HasOne("TestTask.Core.Entities.Client", "Client")
-                        .WithMany("Transactions")
+                        .WithMany("FinanceTransaction")
                         .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_transactions_clients_client_id");
+                        .HasConstraintName("fk_finance_transaction_clients_client_id");
 
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("TestTask.Core.Entities.TransactionHistory", b =>
+                {
+                    b.HasOne("TestTask.Core.Entities.FinanceTransaction", "FinanceTransaction")
+                        .WithMany("TransactionHistories")
+                        .HasForeignKey("FinanceTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_transaction_history_finance_transaction_finance_transaction");
+
+                    b.Navigation("FinanceTransaction");
+                });
+
             modelBuilder.Entity("TestTask.Core.Entities.Client", b =>
                 {
-                    b.Navigation("Transactions");
+                    b.Navigation("FinanceTransaction");
+                });
+
+            modelBuilder.Entity("TestTask.Core.Entities.FinanceTransaction", b =>
+                {
+                    b.Navigation("TransactionHistories");
                 });
 #pragma warning restore 612, 618
         }
