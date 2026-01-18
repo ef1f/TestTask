@@ -6,8 +6,10 @@ using FluentValidation;
 using TestTask.Application.Interfaces;
 using TestTask.Application.Services;
 using TestTask.Application.Strategies;
+using TestTask.Core;
 using TestTask.Infrastructure;
 using TestTask.Infrastructure.Data;
+using TestTask.Infrastructure.Repositories;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +30,7 @@ builder.Services.AddDbInfrastructure(builder.Configuration);
 builder.Services.AddScoped<ITransactionStrategy, CreditStrategy>();
 builder.Services.AddScoped<ITransactionStrategy, DebitStrategy>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<IClientSpecificRepository, ClientSpecificRepository>();
 
 var app = builder.Build();
 

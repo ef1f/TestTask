@@ -15,12 +15,15 @@ public class TransactionService : ITransactionService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly Dictionary<TransactionType, ITransactionStrategy> _strategies;
-
+    private readonly IClientSpecificRepository _clientSpecificRepository;
+    
     public TransactionService(ApplicationDbContext dbContext,
+        IClientSpecificRepository clientRepository,
         IEnumerable<ITransactionStrategy> strategies)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _strategies = strategies.ToDictionary(s => s.Type);
+        _clientSpecificRepository = clientRepository ?? throw new ArgumentNullException(nameof(clientRepository));
     }
 
     public async Task<TransactionResponse> CreditAsync(ITransaction transaction, CancellationToken token)
@@ -41,7 +44,7 @@ public class TransactionService : ITransactionService
                     ClientBalance = data.RevertedHistory.NewClientBalance
                 };
 
-            var client = await GetClientForUpdateAsync(data.Transaction.ClientId, token);
+            var client = await _clientSpecificRepository.GetClientForUpdateAsync(data.Transaction.ClientId, token);
             var strategy = GetStrategy(data.Transaction.TransactionType);
 
             var oldBalance = client.Balance;
@@ -52,7 +55,7 @@ public class TransactionService : ITransactionService
 
             await _dbContext.SaveChangesAsync(token);
             return new RevertResponse
-                { RevertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
+            { RevertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
         }, token);
     }
 
@@ -78,12 +81,12 @@ public class TransactionService : ITransactionService
             var existing = await _dbContext.TransactionHistory
                 .Where(th => th.FinanceTransactionId == transaction.Id && th.Status == TransactionStatus.Completed)
                 .Select(th => new TransactionResponse
-                    { InsertDateTime = th.ModificationDate, ClientBalance = th.NewClientBalance })
+                { InsertDateTime = th.ModificationDate, ClientBalance = th.NewClientBalance })
                 .FirstOrDefaultAsync(token);
 
             if (existing != null) return existing;
 
-            var client = await GetClientForUpdateAsync(transaction.ClientId, token);
+            var client = await _clientSpecificRepository.GetClientForUpdateAsync(transaction.ClientId, token);
             var strategy = GetStrategy(type);
 
             var oldBalance = client.Balance;
@@ -105,7 +108,7 @@ public class TransactionService : ITransactionService
 
             await _dbContext.SaveChangesAsync(token);
             return new TransactionResponse
-                { InsertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
+            { InsertDateTime = history.ModificationDate, ClientBalance = history.NewClientBalance };
         }, token);
     }
 
@@ -120,14 +123,6 @@ public class TransactionService : ITransactionService
         return result;
     }
 
-    private async Task<Client> GetClientForUpdateAsync(Guid clientId, CancellationToken token)
-    {
-        var client = await _dbContext.Clients
-            .FromSqlRaw("SELECT id, name, balance FROM clients WHERE id = @id FOR UPDATE", new NpgsqlParameter("@id", clientId))
-            .FirstOrDefaultAsync(token);
-        return client ?? throw new ClientNotFoundException(clientId);
-    }
-
     private ITransactionStrategy GetStrategy(TransactionType type)
         => _strategies.TryGetValue(type, out var strategy)
             ? strategy
@@ -135,14 +130,14 @@ public class TransactionService : ITransactionService
 
     private TransactionHistory
         CreateHistoryRecord(Guid txId, TransactionStatus status, decimal oldBal, decimal newBal) => new()
-    {
-        Id = Guid.NewGuid(),
-        FinanceTransactionId = txId,
-        Status = status,
-        ModificationDate = DateTime.UtcNow.ToUnspecified(),
-        OldClientBalance = oldBal,
-        NewClientBalance = newBal
-    };
+        {
+            Id = Guid.NewGuid(),
+            FinanceTransactionId = txId,
+            Status = status,
+            ModificationDate = DateTime.UtcNow.ToUnspecified(),
+            OldClientBalance = oldBal,
+            NewClientBalance = newBal
+        };
 
     private async Task<(FinanceTransaction Transaction, TransactionHistory RevertedHistory)>
         GetTransactionWithHistoryAsync(Guid id, CancellationToken token)
