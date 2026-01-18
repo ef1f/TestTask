@@ -69,7 +69,7 @@ public class GlobalExceptionHandler : IExceptionHandler
 
 
         problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
-        problemDetails.Extensions["timestamp"] = DateTime.UtcNow.ToString("O");
+        problemDetails.Extensions["timestamp"] = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:sszzz");
         problemDetails.Extensions["path"] = httpContext.Request.Path;
 
         httpContext.Response.StatusCode = statusCode;

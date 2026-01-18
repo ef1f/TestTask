@@ -123,7 +123,7 @@ public class TransactionService : ITransactionService
     private async Task<Client> GetClientForUpdateAsync(Guid clientId, CancellationToken token)
     {
         var client = await _dbContext.Clients
-            .FromSqlRaw("SELECT * FROM clients WHERE id = @id FOR UPDATE", new NpgsqlParameter("@id", clientId))
+            .FromSqlRaw("SELECT id, name, balance FROM clients WHERE id = @id FOR UPDATE", new NpgsqlParameter("@id", clientId))
             .FirstOrDefaultAsync(token);
         return client ?? throw new ClientNotFoundException(clientId);
     }

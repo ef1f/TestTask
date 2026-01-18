@@ -43,7 +43,7 @@ app.UseStatusCodePages();
 
 app.MapControllers();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsEnvironment("Development") || app.Environment.IsEnvironment("Local"))
 {
     app.MapOpenApi();
     app.MapScalarApiReference();

@@ -15,7 +15,7 @@ public static class DataSeeder
         var client = new Client
         {
             Id = Guid.Parse("cfaa0d3f-7fea-4423-9f69-ebff826e2f89"),
-            Name = "Клиент 1",
+            Name = "Тестовый клиент",
             Balance = 0m
         };
 
